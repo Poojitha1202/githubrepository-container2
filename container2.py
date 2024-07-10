@@ -1,53 +1,101 @@
-from flask import Flask, request, jsonify
-import pandas as pd
+import logging
 import os
+from flask import Flask, jsonify, request
+import csv
 
 app = Flask(__name__)
 
-FILE_DIRECTORY = "/path_to_your_persistent_volume"
+DATA_PATH = "../poojitha_PV_dir"  
 
-@app.route('/validate-csv', methods=['POST'])
-def validate_csv():
-    """API endpoint to validate if the file is a proper CSV."""
-    data = request.get_json()
-    filepath = f'/data/{data["file"]}'
+
+def validate_json(data):
+    if data is None or 'file' not in data or not isinstance(data['file'], str) or data['file'] == '':
+        return False
+    return True
+
+
+def check_csv_file_format(file_name):
+    required_columns = ['product', 'amount']
+    filepath = os.path.join(DATA_PATH, file_name)
 
     try:
-        # Attempt to read the file as a CSV
-        df = pd.read_csv(filepath)
-        # Check for the necessary columns
-        if 'product' in df.columns and 'amount' in df.columns:
-            return jsonify({"file": data["file"], "message": "File is a valid CSV."}), 200
-        else:
-            return jsonify({"file": data["file"], "error": "CSV does not contain the required columns."}), 400
-    except pd.errors.ParserError:
-        return jsonify({"file": data["file"], "error": "Input file not in CSV format."}), 400
+        with open(filepath, 'r') as file:
+            csv_reader = csv.DictReader(file)
+            content = file.read().strip()
+
+            if not content.startswith("product, amount"):
+                return False
+            
+            for row in enumerate(csv_reader, start=2):
+                if len(row) != len(required_columns):
+                    return False
+
+                if set(row.keys()) != set(required_columns):
+                    return False 
+
+                if any(not row[column] for column in required_columns):
+                    return False
+
+                try:
+                    int(row['amount'])
+                except ValueError:
+                    return False
+
+                if any(not row[column] for column in required_columns):
+                    return False
+
+        return True
+
     except FileNotFoundError:
-        return jsonify({"file": data["file"], "error": "File not found."}), 404
+        return False
+
+
+def calculate_sum(file_name, product):
+    total_sum = 0
+    filepath = os.path.join(DATA_PATH, file_name)
+
+    with open(filepath, 'r') as file:
+        file_content = file.read().strip().split('\n')
+        headers = file_content[0].split(', ')
+        if 'amount' not in headers:
+            return "0"
+
+        amount_index = headers.index('amount')
+
+        for line in file_content[1:]:
+            columns = line.split(',')
+            if len(columns) > amount_index:
+                amount_value = columns[amount_index].strip()
+                if amount_value:
+                    try:
+                        amt = int(amount_value)
+                        if columns[0] == product:
+                            total_sum += amt
+                    except ValueError:
+                        continue
+
+    return str(total_sum)
 
 
 @app.route('/processSum', methods=['POST'])
-def computeSum():
+def processSum():
     data = request.get_json()
-    
-    filepath = f'/data/{data["file"]}'
-
+    file_name = data['file']
     product = data['product']
-    
-    try:
-        df = pd.read_csv(filepath, delimiter=',')
 
-        required_columns = ['product', 'amount']
-        if not all(column in df.columns for column in ['product', 'amount']):
-            return jsonify({"file": data["file"], "error": "Input file not in CSV format."}), 400
+    try:
+        if not check_csv_file_format(file_name):
+            error_response = {
+                'file': file_name,
+                'error': 'Input file not in CSV format.'
+            }
+            return jsonify(error_response), 400
         
-        total_sum = df[df['product'] == product]['amount'].sum()
-        
-        return jsonify({"file": data["file"], "sum": int(total_sum)})
-    except pd.errors.ParserError:
-        return jsonify({"file": data["file"], "error": "Input file not in CSV format."}), 400
-    except pd.errors.EmptyDataError:
-        return jsonify({"file": data["file"], "error": "Input file not in CSV format."}), 400
+        sum_value = calculate_sum(file_name, product)
+        return jsonify({"file": file_name, "sum": int(sum_value)})
+
+    except Exception as e:
+        return jsonify({"file": file_name, "error": f"Error processing sum: {e}"}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=4000)  # Use an internal port different from the orchestrator
+    app.run(host="0.0.0.0", port=4000)
