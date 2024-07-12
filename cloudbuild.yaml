@@ -4,7 +4,7 @@ steps:
       [
         "build",
         "-t",
-        "us-central1-docker.pkg.dev/kubernetes-assignment-428501/k8-artifactregistry-container2/k8-container2:v2",
+        "us-central1-docker.pkg.dev/kubernetes-assignment-428501/k8-artifactregistry-container2/k8-container2:v1",
         ".",
       ]
 
@@ -12,14 +12,14 @@ steps:
     args:
       [
         "push",
-        "us-central1-docker.pkg.dev/kubernetes-assignment-428501/k8-artifactregistry-container2/k8-container2:v2",
+        "us-central1-docker.pkg.dev/kubernetes-assignment-428501/k8-artifactregistry-container2/k8-container2:v1",
       ]
 
   - name: "gcr.io/cloud-builders/gke-deploy"
     args:
       - run
       - --filename=./Manifest/
-      - --image=us-central1-docker.pkg.dev/kubernetes-assignment-428501/k8-artifactregistry-container2/k8-container2:v2
+      - --image=us-central1-docker.pkg.dev/kubernetes-assignment-428501/k8-artifactregistry-container2/k8-container2:v1
       - --location=us-central1
       - --cluster=k8-cluster
 
