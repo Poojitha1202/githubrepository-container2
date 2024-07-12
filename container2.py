@@ -7,8 +7,7 @@ app = Flask(__name__)
 
 DATA_PATH = "../poojitha_PV_dir"  
 
-
-
+#Container 2
 def validate_json(data):
     if data is None or 'file' not in data or not isinstance(data['file'], str) or data['file'] == '':
         return False
